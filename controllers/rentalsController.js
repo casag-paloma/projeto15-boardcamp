@@ -4,7 +4,6 @@ export async function getRentals(req, res){
     const customerId = parseInt(req.query.customerId);
     const gameId = parseInt(req.query.gameId);
 
-
     try {
 
         if(customerId){
@@ -87,3 +86,23 @@ export async function getRentals(req, res){
         res.sendStatus(422);
     }
 };
+
+export async function deleteRental(req,res){
+    const id = req.params.id;
+
+    if(isNaN(id)){
+        return res.sendStatus(400);
+    }
+
+    try {
+        const rentalsById = await connection.query(`SELECT * FROM rentals WHERE rentals.id =$1;`, [id]);
+        const rentalById = rentalsById.rows[0];
+        if(!rentalById) return res.sendStatus(404);
+        if(!rentalsById.returnDate) return res.sendStatus(400);
+        res.sendStatus(200);
+
+    } catch (error) {
+        console.log(error);
+        res.sendStatus(422);
+    }
+}
