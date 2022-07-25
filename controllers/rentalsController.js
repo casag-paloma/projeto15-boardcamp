@@ -103,6 +103,8 @@ export async function deleteRental(req,res){
         if(!rentalsById.returnDate) return res.sendStatus(400);
         res.sendStatus(200);
 
+        await connection.query(`DELETE FROM rentals WHERE rentals.id =$1;`, [id] )
+
     } catch (error) {
         console.log(error);
         res.sendStatus(422);
@@ -157,3 +159,45 @@ export async function addRental(req, res){
         res.sendStatus(422);
     }
 }
+
+export async function closeRentalById(req,res){
+    const id = req.params.id;
+
+    if(isNaN(id)){
+        return res.sendStatus(400);
+    }
+
+    try {
+        const rentalsById = await connection.query(`SELECT * FROM rentals WHERE rentals.id =$1;`, [id]);
+        const rentalById = rentalsById.rows[0];
+        if(!rentalById) return res.sendStatus(404);
+        const {rows: returnedDate} = await connection.query(`SELECT "returnDate" FROM rentals WHERE rentals.id =$1;`, [id]);
+        const hasReturnDate = (returnedDate[0].returnDate);
+        console.log(typeof(rentalById.returnDate), rentalById.returnDate, hasReturnDate);
+        if(hasReturnDate !== null ) return res.sendStatus(400);
+
+        const returnDate = dayjs();
+        const time = returnDate.diff(rentalById.rentDate);
+        const day = 24*60*60*1000;
+        const daysInDelay = Math.floor((time/day) - (rentalById.daysRented));
+
+        const {rows: pricePerGame} = await connection.query(`SELECT "pricePerDay" FROM games WHERE games.id = ${rentalById.gameId};`);
+        const gameFee = (pricePerGame[0].pricePerDay) * (daysInDelay);
+        let delayFee = 0;
+
+        if(gameFee > 0 ) delayFee = gameFee;
+        console.log(day, time, daysInDelay, delayFee);
+
+        await connection.query(`UPDATE rentals SET "returnDate" = '${dayjs().format('YYYY-MM-DD')}', "delayFee" = ${delayFee} WHERE rentals.id = $1;`, [id]);
+        
+        const {rows: stockGame} = await connection.query(`SELECT "stockTotal" FROM games WHERE games.id = ${rentalById.gameId};`);
+        const stockGameNow = stockGame[0].stockTotal;
+        await connection.query(`UPDATE games SET "stockTotal" = ${stockGameNow + 1} WHERE id = ${rentalById.gameId};`);
+
+        res.sendStatus(200);
+
+    } catch (error) {
+        console.log(error);
+        res.sendStatus(422);
+    }
+};
