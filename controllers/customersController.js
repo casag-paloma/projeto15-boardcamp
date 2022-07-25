@@ -1,4 +1,5 @@
 import connection from "../dbStrategy/pgdb.js";
+import customerSchema from '../schemas/customerSchema.js'
 
 export async function getCustomers(req, res){
     const cpf = req.query.cpf;
@@ -27,9 +28,40 @@ export async function getCustomersById(req, res){
         const customerById = customersById.rows[0];
         if(!customerById) return res.sendStatus(404);
         res.send(customerById);
-        
+
     } catch (error) {
         console.log(error);
         res.sendStatus(422);
     }
 };
+
+export async function addCustomer(req, res){
+    const newCustomer = req.body;
+    const validation = customerSchema.validate(newCustomer, { abortEarly: false });
+    if(validation.error){
+        const message =  validation.error.details.map(e => e.message);
+        return res.status(400).send(message);
+    }
+
+    try {
+
+        const customers = await connection.query('SELECT cpf FROM customers;');
+        const customersCpf = customers.rows.map(e => e.cpf);
+        const repeatCpf = customersCpf.find(e => e == newCustomer.cpf)
+        if(repeatCpf){
+            return res.status(409).send('Esse cpf já está cadastrado no sistema.')
+        }
+
+        await connection.query(`INSERT INTO customers (name, phone, cpf, birthday) VALUES (
+            '${newCustomer.name}', 
+            '${newCustomer.phone}',
+            '${newCustomer.cpf}', 
+            '${newCustomer.birthday}');`
+        );
+        res.sendStatus(201);
+
+    } catch (error) {
+        console.log(error);
+        res.sendStatus(422);
+    }
+}
