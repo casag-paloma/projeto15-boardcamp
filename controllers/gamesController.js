@@ -47,7 +47,7 @@ export async function addGame(req, res){
             ${newGame.stockTotal}, 
             ${newGame.categoryId}, 
             ${newGame.pricePerDay});`
-        )
+        );
         res.sendStatus(201);
 
     } catch (error) {
