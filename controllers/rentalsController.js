@@ -100,7 +100,9 @@ export async function deleteRental(req,res){
         const rentalsById = await connection.query(`SELECT * FROM rentals WHERE rentals.id =$1;`, [id]);
         const rentalById = rentalsById.rows[0];
         if(!rentalById) return res.sendStatus(404);
-        if(!rentalsById.returnDate) return res.sendStatus(400);
+        const {rows: returnedDate} = await connection.query(`SELECT "returnDate" FROM rentals WHERE rentals.id =$1;`, [id]);
+        const hasReturnDate = (returnedDate[0].returnDate);
+        if(hasReturnDate == null ) return res.sendStatus(400);
         res.sendStatus(200);
 
         await connection.query(`DELETE FROM rentals WHERE rentals.id =$1;`, [id] )
@@ -133,14 +135,11 @@ export async function addRental(req, res){
 
         const {rows: stockGame} = await connection.query(`SELECT "stockTotal" FROM games WHERE games.id = ${newRental.gameId};`);
         const stockGameNow = stockGame[0].stockTotal; 
-        console.log(stockGame[0].stockTotal, stockGameNow);
         if(stockGameNow < 1) return res.sendStatus(400);
 
         const {rows: pricePerGame} = await connection.query(`SELECT "pricePerDay" FROM games WHERE games.id = ${newRental.gameId};`);
-        console.log(pricePerGame[0].pricePerDay);
 
         const originalPrice = (pricePerGame[0].pricePerDay) * (newRental.daysRented);
-        console.log(originalPrice);
         await connection.query(`INSERT INTO rentals ("customerId", "gameId", "rentDate", "daysRented", "returnDate", "originalPrice", "delayFee") VALUES (
             ${newRental.customerId}, 
             ${newRental.gameId},
@@ -173,7 +172,6 @@ export async function closeRentalById(req,res){
         if(!rentalById) return res.sendStatus(404);
         const {rows: returnedDate} = await connection.query(`SELECT "returnDate" FROM rentals WHERE rentals.id =$1;`, [id]);
         const hasReturnDate = (returnedDate[0].returnDate);
-        console.log(typeof(rentalById.returnDate), rentalById.returnDate, hasReturnDate);
         if(hasReturnDate !== null ) return res.sendStatus(400);
 
         const returnDate = dayjs();
@@ -186,8 +184,6 @@ export async function closeRentalById(req,res){
         let delayFee = 0;
 
         if(gameFee > 0 ) delayFee = gameFee;
-        console.log(day, time, daysInDelay, delayFee);
-
         await connection.query(`UPDATE rentals SET "returnDate" = '${dayjs().format('YYYY-MM-DD')}', "delayFee" = ${delayFee} WHERE rentals.id = $1;`, [id]);
         
         const {rows: stockGame} = await connection.query(`SELECT "stockTotal" FROM games WHERE games.id = ${rentalById.gameId};`);

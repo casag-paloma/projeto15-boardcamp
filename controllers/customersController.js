@@ -83,7 +83,9 @@ export async function updateCustomerById(req, res){
 
         const customers = await connection.query('SELECT cpf FROM customers;');
         const customersCpf = customers.rows.map(e => e.cpf);
-        const repeatCpf = customersCpf.find(e => e == newCustomer.cpf)
+        const {rows: customerOldCpf} = await connection.query(`SELECT cpf FROM customers WHERE id=$1;`, [id]);
+        const customersCpfOutsideUpdate = customersCpf.filter(e => e != customerOldCpf[0].cpf);
+        const repeatCpf = customersCpfOutsideUpdate.find(e => e == newCustomer.cpf)
         if(repeatCpf){
             return res.status(409).send('Esse cpf já está cadastrado no sistema.')
         }
