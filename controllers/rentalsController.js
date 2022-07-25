@@ -1,4 +1,6 @@
 import connection from "../dbStrategy/pgdb.js";
+import dayjs from 'dayjs' ;
+import rentalSchema from "../schemas/rentalSchema.js";
 
 export async function getRentals(req, res){
     const customerId = parseInt(req.query.customerId);
@@ -100,6 +102,55 @@ export async function deleteRental(req,res){
         if(!rentalById) return res.sendStatus(404);
         if(!rentalsById.returnDate) return res.sendStatus(400);
         res.sendStatus(200);
+
+    } catch (error) {
+        console.log(error);
+        res.sendStatus(422);
+    }
+}
+
+export async function addRental(req, res){
+    const newRental = req.body;
+    const rentDate = dayjs().format('YYYY-MM-DD'); 
+    const validation = rentalSchema.validate(newRental, { abortEarly: false });
+    if(validation.error){
+        const message =  validation.error.details.map(e => e.message);
+        return res.status(400).send(message);
+    }
+
+    try {
+
+        const customers = await connection.query('SELECT id FROM customers;');
+        const customersId = customers.rows.map(e => e.id);
+        const hasCustomerId = customersId.find(e => e == newRental.customerId);
+        if(!hasCustomerId) return res.sendStatus(400);
+        const games = await connection.query('SELECT id FROM games;');
+        const gamesId = games.rows.map(e => e.id);
+        const hasGameId = gamesId.find(e => e == newRental.gameId);
+        if(!hasGameId) return res.sendStatus(400);
+
+        const {rows: stockGame} = await connection.query(`SELECT "stockTotal" FROM games WHERE games.id = ${newRental.gameId};`);
+        const stockGameNow = stockGame[0].stockTotal; 
+        console.log(stockGame[0].stockTotal, stockGameNow);
+        if(stockGameNow < 1) return res.sendStatus(400);
+
+        const {rows: pricePerGame} = await connection.query(`SELECT "pricePerDay" FROM games WHERE games.id = ${newRental.gameId};`);
+        console.log(pricePerGame[0].pricePerDay);
+
+        const originalPrice = (pricePerGame[0].pricePerDay) * (newRental.daysRented);
+        console.log(originalPrice);
+        await connection.query(`INSERT INTO rentals ("customerId", "gameId", "rentDate", "daysRented", "returnDate", "originalPrice", "delayFee") VALUES (
+            ${newRental.customerId}, 
+            ${newRental.gameId},
+            '${rentDate}',
+            ${newRental.daysRented},
+            null,
+            ${originalPrice},
+            null);`
+        );
+
+        await connection.query(`UPDATE games SET "stockTotal" = ${stockGameNow - 1} WHERE id = ${newRental.gameId};`);
+        res.sendStatus(201);
 
     } catch (error) {
         console.log(error);
